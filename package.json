@@ -22,6 +22,8 @@
     "demo:happy-path": "hardhat run scripts/demo_happy_path.js --network cchain_testnet",
     "demo:fallback": "hardhat run scripts/demo_fallback.js --network hardhat",
     "verify:policy-timing": "hardhat run scripts/verify_policy_timing.js --network hardhat",
+    "read:cchain-policy": "hardhat run scripts/read_cchain_policy.js --network cchain_testnet",
+    "read:beam-vault": "hardhat run scripts/read_beam_vault_and_buckets.js --network beam_testnet",
     "deploy:all": "hardhat run scripts/deploy-all.js",
     "send:ping": "hardhat run scripts/send-ping.js",
     "send:triangle": "hardhat run scripts/send-triangle.js",

@@ -29,6 +29,88 @@ Variables requeridas:
 - `TELEPORTER_MESSENGER_DFK`
 - `TELEPORTER_MESSENGER_BEAM`
 
+## Issue 12 - Observabilidad + demo de 3 minutos
+
+### Arquitectura
+
+- C-Chain:
+  - `MpDaoToken` (gobernanza)
+  - `VotingPowerV1` (VP por lock/stake)
+  - `PolicyGovernor` (epochs + quorum + policy final)
+  - `PolicyServer` (handler request/response)
+- BEAM:
+  - `PolicyClient` (request + storage + fallback)
+  - `StBEAMVault` (ERC4626 + fee + buckets)
+- Backbone:
+  - Teleporter/AWM (mensaje `RequestPolicy` y `PolicyResponse`)
+
+### Variables de entorno para demo/read-state
+
+Mínimas para correr en testnet:
+- `RPC_CCHAIN_TESTNET`
+- `RPC_BEAM_TESTNET`
+- `PRIVATE_KEY`
+
+Para lectura explícita por script:
+- `POLICY_GOVERNOR_ADDRESS` (C-Chain)
+- `STBEAM_VAULT_ADDRESS` (BEAM)
+- `POLICY_CLIENT_ADDRESS` (BEAM, opcional)
+- `READ_POLICY_EPOCH` (opcional, si no se define usa `latestFinalizedEpoch`)
+
+### Comandos de demo
+
+Demo happy-path (usa C-Chain + BEAM testnet):
+
+```bash
+npm run demo:happy-path
+```
+
+Lectura de estado C-Chain policy:
+
+```bash
+npm run read:cchain-policy -- --policyGovernor 0x...
+```
+
+Lectura de estado BEAM vault + buckets:
+
+```bash
+npm run read:beam-vault -- --vault 0x... --policyClient 0x...
+```
+
+Si `POLICY_GOVERNOR_ADDRESS` / `STBEAM_VAULT_ADDRESS` están en `.env` (o en `deployments.json` con estructura compatible), los flags son opcionales.
+
+### Qué mirar (eventos y outputs)
+
+- En demo:
+  - `SUCCESS`
+  - `epoch usado`
+  - `policy final`
+  - `buckets resultantes`
+- En transacciones:
+  - `EpochFinalized` (C-Chain)
+  - `PolicyRequested`, `PolicyReceived`, `PolicyFallbackUsed` (BEAM client)
+  - `PolicyApplied`, `BucketsUpdated`, `FeeCharged` (BEAM vault)
+- En scripts de lectura:
+  - `applicableEpoch (epoch-1)`
+  - `latestFinalizedEpoch` / `epochRead`
+  - suma de policy en BPS (`policySumBps = 10000`)
+  - `bucketsSum` y distribución por `validatorId`
+
+### Criterios de éxito
+
+- `PolicyGovernor` tiene al menos un epoch finalizado con policy válida (10000 bps).
+- `StBEAMVault` aplica policy activa y actualiza buckets tras `deposit`.
+- Si falta policy de `epochToUse`, se usa fallback (`PolicyFallbackUsed`) sin revertir depósito.
+- Outputs de lectura muestran coherencia entre epoch aplicable, policy usada y buckets.
+
+### Demo checklist (5 pasos)
+
+1. Configurar `.env` (RPCs + `PRIVATE_KEY` + direcciones objetivo).
+2. Ejecutar `npm run demo:happy-path`.
+3. Confirmar `SUCCESS` + `epoch usado` + `policy final` + `buckets resultantes`.
+4. Ejecutar `npm run read:cchain-policy -- --policyGovernor 0x...`.
+5. Ejecutar `npm run read:beam-vault -- --vault 0x... --policyClient 0x...`.
+
 ## Comandos
 
 Compilar:
