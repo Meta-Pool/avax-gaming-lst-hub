@@ -8,6 +8,11 @@
   "scripts": {
     "compile": "hardhat compile",
     "clean": "hardhat clean",
+    "smoke:cchain": "hardhat run scripts/smoke.js --network cchain_testnet",
+    "smoke:dfk": "hardhat run scripts/smoke.js --network dfk_testnet",
+    "smoke:beam": "hardhat run scripts/smoke.js --network beam_testnet",
+    "deploy:mpdao": "hardhat run scripts/deploy_mpdao.ts --network cchain_testnet",
+    "mint:mpdao": "hardhat run scripts/mint_mpdao.ts --network cchain_testnet",
     "deploy:all": "hardhat run scripts/deploy-all.js",
     "send:ping": "hardhat run scripts/send-ping.js",
     "send:triangle": "hardhat run scripts/send-triangle.js",

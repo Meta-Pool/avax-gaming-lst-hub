@@ -39,13 +39,16 @@ function loadEnvFile() {
 }
 
 function getAccounts() {
-  const privateKey = process.env.PRIVATE_KEY;
-  if (!privateKey) {
+  const privateKey = process.env.PRIVATE_KEY?.trim();
+  if (!privateKey || privateKey.length === 0) {
     return [];
   }
 
-  if (!privateKey.startsWith("0x")) {
-    throw new Error("PRIVATE_KEY must be a 0x-prefixed hex string");
+  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
+    console.warn(
+      "Ignoring PRIVATE_KEY: expected 0x-prefixed 32-byte hex string"
+    );
+    return [];
   }
 
   return [privateKey];
@@ -57,16 +60,25 @@ const accounts = getAccounts();
 module.exports = {
   solidity: "0.8.24",
   networks: {
-    cchain: {
-      url: process.env.RPC_CCHAIN || "http://127.0.0.1:9650/ext/bc/C/rpc",
+    cchain_testnet: {
+      url:
+        process.env.RPC_CCHAIN_TESTNET ||
+        process.env.RPC_CCHAIN ||
+        "http://127.0.0.1:8545",
       accounts,
     },
-    dfk: {
-      url: process.env.RPC_DFK || "http://127.0.0.1:9652/ext/bc/DFK/rpc",
+    dfk_testnet: {
+      url:
+        process.env.RPC_DFK_TESTNET ||
+        process.env.RPC_DFK ||
+        "http://127.0.0.1:8545",
       accounts,
     },
-    beam: {
-      url: process.env.RPC_BEAM || "http://127.0.0.1:9654/ext/bc/BEAM/rpc",
+    beam_testnet: {
+      url:
+        process.env.RPC_BEAM_TESTNET ||
+        process.env.RPC_BEAM ||
+        "http://127.0.0.1:8545",
       accounts,
     },
   },
