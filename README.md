@@ -153,3 +153,24 @@ Eventos:
 - `Deposit` (ERC4626 estándar)
 - `Withdraw` (ERC4626 estándar)
 - `FeeCharged` (custom)
+
+## Issue 7 - BEAM PolicyClient (request/response + fallback)
+
+`PolicyClient` en BEAM:
+- `requestPolicy(epoch)` envia solicitud a C-Chain.
+- `onPolicyResponse(...)` / `onTeleporterMessage(...)` reciben y guardan policy.
+- Storage:
+  - `lastKnownEpoch`
+  - `lastKnownPolicy` (validator IDs + weights BPS)
+- `getPolicyOrFallback(epoch)`:
+  - si existe policy para `epoch`, la devuelve.
+  - si no existe, devuelve `lastKnownPolicy` y emite `PolicyFallbackUsed`.
+
+Eventos:
+- `PolicyRequested`
+- `PolicyReceived`
+- `PolicyFallbackUsed`
+
+Flujo esperado (DoD):
+1. Para un `epochToUse` sin policy local, se llama `requestPolicy(epochToUse)`.
+2. Mientras llega respuesta, `getPolicyOrFallback(epochToUse)` usa fallback (`lastKnownPolicy`) y emite `PolicyFallbackUsed`.
