@@ -125,3 +125,31 @@ Script de verificacion:
 ```bash
 npm run verify:policy-timing
 ```
+
+## Issue 6 - BEAM Vault ERC4626 stBEAM + deposit fee
+
+Contratos:
+- `StBEAMVault` (ERC4626) para mintear `stBEAM`.
+- `BeamAssetMock` (si no se provee asset externo).
+
+Modelo de fee:
+- `DEPOSIT_FEE_BPS` se cobra **sobre el monto depositado**.
+- No es un cargo adicional.
+- El fee acumulado queda en `feeAccumulator`.
+
+Deploy en BEAM testnet:
+
+```bash
+npm run deploy:beam-vault
+```
+
+Smoke de vault (deposit + withdraw + fee):
+
+```bash
+npm run smoke:beam-vault
+```
+
+Eventos:
+- `Deposit` (ERC4626 estándar)
+- `Withdraw` (ERC4626 estándar)
+- `FeeCharged` (custom)
