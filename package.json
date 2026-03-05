@@ -19,6 +19,7 @@
     "smoke:beam-vault": "hardhat run scripts/beam_vault_smoke.js --network beam_testnet",
     "set:policy-client-peers": "hardhat run scripts/set_policy_client_peers.js --network beam_testnet",
     "set:policy-server-peers": "hardhat run scripts/set_policy_server_peers.js --network cchain_testnet",
+    "demo:happy-path": "hardhat run scripts/demo_happy_path.js --network cchain_testnet",
     "verify:policy-timing": "hardhat run scripts/verify_policy_timing.js --network hardhat",
     "deploy:all": "hardhat run scripts/deploy-all.js",
     "send:ping": "hardhat run scripts/send-ping.js",

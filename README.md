@@ -215,3 +215,28 @@ Lectura de estado:
 
 DoD esperado:
 - Tras `deposit()`, los buckets cambian y la suma de incrementos coincide con el neto depositado (monto - fee).
+
+## Issue 10 - Demo happy path E2E
+
+Script unico:
+
+```bash
+npm run demo:happy-path
+```
+
+Flujo del demo:
+1. C-Chain: deploy `mpDAO`, `VotingPower` (proxy), `PolicyGovernor`, `PolicyServer`.
+2. C-Chain: mintea mpDAO al usuario.
+3. C-Chain: stake/lock para obtener VP.
+4. C-Chain: vota policy A/B/C/D y finaliza epoch.
+5. BEAM: deploy `PolicyClient`, `stBEAMVault`, mock asset.
+6. BEAM: hace `requestPolicy(epochToUse)`.
+7. Relay simulado request/response con `MockTeleporterMessenger`.
+8. BEAM: deposita en vault.
+9. BEAM: verifica `PolicyApplied` y `BucketsUpdated`.
+
+Salida esperada:
+- `epoch usado`
+- `policy final`
+- `buckets resultantes`
+- `SUCCESS`
