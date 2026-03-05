@@ -50,6 +50,49 @@ async function deployMockAssetIfNeeded(deployer) {
   };
 }
 
+function parseUintArray(value, fallbackCsv) {
+  const raw = (value && value.length > 0 ? value : fallbackCsv).split(",");
+  return raw.map((v) => BigInt(v.trim()));
+}
+
+function parseUint16Array(value, fallbackCsv) {
+  const raw = (value && value.length > 0 ? value : fallbackCsv).split(",");
+  return raw.map((v) => Number(v.trim()));
+}
+
+async function deployMockPolicyClientIfNeeded() {
+  const { ethers } = hre;
+
+  if (process.env.POLICY_CLIENT_ADDRESS && ethers.isAddress(process.env.POLICY_CLIENT_ADDRESS)) {
+    return {
+      address: process.env.POLICY_CLIENT_ADDRESS,
+      deployed: false,
+    };
+  }
+
+  const factory = await ethers.getContractFactory("MockPolicyClient");
+  const policyClient = await factory.deploy();
+  await policyClient.waitForDeployment();
+
+  const defaultEpoch = BigInt(process.env.MOCK_POLICY_EPOCH || "1");
+  const validatorIds = parseUintArray(
+    process.env.MOCK_POLICY_VALIDATOR_IDS,
+    "1,2,3,4"
+  );
+  const weights = parseUint16Array(
+    process.env.MOCK_POLICY_WEIGHTS_BPS,
+    "2500,2500,2500,2500"
+  );
+
+  const tx = await policyClient.setPolicy(defaultEpoch, validatorIds, weights);
+  await tx.wait();
+
+  return {
+    address: await policyClient.getAddress(),
+    deployed: true,
+  };
+}
+
 async function main() {
   const { ethers, network } = hre;
   requireNetwork("beam_testnet");
@@ -65,9 +108,19 @@ async function main() {
   }
 
   const assetInfo = await deployMockAssetIfNeeded(deployer);
+  const policyClientInfo = await deployMockPolicyClientIfNeeded();
+  const policyEpochSeconds = Number(process.env.POLICY_EPOCH_SECONDS || "60");
+  const policyStartTimestamp = BigInt(process.env.POLICY_START_TIMESTAMP || "0");
 
   const vaultFactory = await ethers.getContractFactory("StBEAMVault");
-  const vault = await vaultFactory.deploy(assetInfo.address, depositFeeBps, deployer.address);
+  const vault = await vaultFactory.deploy(
+    assetInfo.address,
+    depositFeeBps,
+    deployer.address,
+    policyClientInfo.address,
+    policyEpochSeconds,
+    policyStartTimestamp
+  );
   await vault.waitForDeployment();
   const vaultAddress = await vault.getAddress();
 
@@ -91,9 +144,16 @@ async function main() {
     stBeamVault: {
       address: vaultAddress,
       asset: assetInfo.address,
+      policyClient: policyClientInfo.address,
+      policyEpochSeconds,
+      policyStartTimestamp: policyStartTimestamp.toString(),
       depositFeeBps,
       feeMode: "on_deposited_amount",
       shareSymbol: "stBEAM",
+    },
+    policyClient: {
+      address: policyClientInfo.address,
+      type: policyClientInfo.deployed ? "MockPolicyClient" : "external",
     },
   };
   deployments.updatedAt = new Date().toISOString();
@@ -101,6 +161,9 @@ async function main() {
   fs.writeFileSync(deploymentsPath, `${JSON.stringify(deployments, null, 2)}\n`);
 
   console.log(`beam asset: ${assetInfo.address} (${assetInfo.deployed ? "deployed" : "provided"})`);
+  console.log(
+    `policy client: ${policyClientInfo.address} (${policyClientInfo.deployed ? "deployed" : "provided"})`
+  );
   console.log(`stBEAMVault deployed at: ${vaultAddress}`);
   console.log(`deposit fee mode: on_deposited_amount (${depositFeeBps} bps)`);
   console.log(`deployments saved to: ${deploymentsPath}`);

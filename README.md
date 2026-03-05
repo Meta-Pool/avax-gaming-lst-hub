@@ -194,3 +194,24 @@ Configuracion de peers (setters):
 npm run set:policy-server-peers
 npm run set:policy-client-peers
 ```
+
+## Issue 9 - BEAM simulated execution (buckets)
+
+`StBEAMVault` ahora aplica policy y simula ejecucion por buckets internos:
+- Para cada deposito neto (despues de fee), distribuye por `validatorId` segun `weightsBps`.
+- Contabilidad:
+  - `bucket[validatorId] += amountPart`
+- Eventos:
+  - `PolicyApplied(epoch, weights[])`
+  - `BucketsUpdated(epoch, amounts[])`
+
+Regla aplicada:
+- El vault usa `epochToUse = currentEpoch - 1`.
+- Obtiene policy via `PolicyClient.getPolicyOrFallback(epochToUse)`.
+- Si no hay policy para `epochToUse`, usa fallback (si existe `lastKnownPolicy`).
+
+Lectura de estado:
+- `getBuckets()` devuelve `(validatorIds[], amounts[])`.
+
+DoD esperado:
+- Tras `deposit()`, los buckets cambian y la suma de incrementos coincide con el neto depositado (monto - fee).

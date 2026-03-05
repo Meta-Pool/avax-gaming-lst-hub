@@ -37,13 +37,21 @@ async function main() {
 
   const depositTokens = process.env.BEAM_VAULT_TEST_DEPOSIT || "10";
   const depositAssets = ethers.parseUnits(depositTokens, 18);
+  const feeBps = await vault.DEPOSIT_FEE_BPS();
+  const expectedFee = (depositAssets * feeBps) / 10000n;
+  const expectedNet = depositAssets - expectedFee;
+
+  const [bucketIdsBefore, bucketAmountsBefore] = await vault.getBuckets();
+  const beforeMap = new Map();
+  for (let i = 0; i < bucketIdsBefore.length; i += 1) {
+    beforeMap.set(bucketIdsBefore[i].toString(), bucketAmountsBefore[i]);
+  }
 
   let balance = await asset.balanceOf(user.address);
   if (balance < depositAssets) {
     const missing = depositAssets - balance;
     const mintTx = await asset.mint(user.address, missing);
     await mintTx.wait();
-    balance = await asset.balanceOf(user.address);
   }
 
   const approveTx = await asset.approve(vaultAddress, depositAssets);
@@ -54,9 +62,21 @@ async function main() {
 
   const feeAccumulatorAfterDeposit = await vault.feeAccumulator();
   const sharesAfterDeposit = await vault.balanceOf(user.address);
-  const maxWithdraw = await vault.maxWithdraw(user.address);
 
-  if (maxWithdraw == 0n) {
+  const [bucketIdsAfter, bucketAmountsAfter] = await vault.getBuckets();
+  const afterMap = new Map();
+  for (let i = 0; i < bucketIdsAfter.length; i += 1) {
+    afterMap.set(bucketIdsAfter[i].toString(), bucketAmountsAfter[i]);
+  }
+
+  let bucketDeltaSum = 0n;
+  for (const [id, afterAmount] of afterMap.entries()) {
+    const before = beforeMap.get(id) || 0n;
+    bucketDeltaSum += afterAmount - before;
+  }
+
+  const maxWithdraw = await vault.maxWithdraw(user.address);
+  if (maxWithdraw === 0n) {
     throw new Error("maxWithdraw is 0 after deposit");
   }
 
@@ -68,12 +88,22 @@ async function main() {
   const sharesAfterWithdraw = await vault.balanceOf(user.address);
 
   console.log(`deposit tx: ${depositRcpt.hash}`);
+  console.log(`expected fee: ${expectedFee}`);
+  console.log(`expected net distributed: ${expectedNet}`);
+  console.log(`bucket delta sum: ${bucketDeltaSum}`);
   console.log(`feeAccumulator after deposit: ${feeAccumulatorAfterDeposit}`);
   console.log(`shares after deposit: ${sharesAfterDeposit}`);
   console.log(`withdraw assets: ${withdrawAssets}`);
   console.log(`feeAccumulator after withdraw: ${feeAccumulatorAfterWithdraw}`);
   console.log(`shares after withdraw: ${sharesAfterWithdraw}`);
-  console.log("beam vault smoke passed (deposit + withdraw + fee state)");
+
+  if (bucketDeltaSum !== expectedNet) {
+    throw new Error(
+      `bucket distribution mismatch: expected ${expectedNet}, got ${bucketDeltaSum}`
+    );
+  }
+
+  console.log("beam vault smoke passed (deposit + withdraw + fee state + buckets)");
 }
 
 main().catch((error) => {
