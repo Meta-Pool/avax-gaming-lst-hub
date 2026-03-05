@@ -240,3 +240,19 @@ Salida esperada:
 - `policy final`
 - `buckets resultantes`
 - `SUCCESS`
+
+## Issue 11 - Demo fallback path
+
+Script unico (sin depender de RPC externas, usa `hardhat`):
+
+```bash
+npm run demo:fallback
+```
+
+Que demuestra:
+1. Existe una `lastKnownPolicy` (epoch conocido).
+2. Se solicita policy para un epoch nuevo y no llega respuesta.
+3. `deposit()` no revierte.
+4. Se emite `PolicyFallbackUsed`.
+5. Se emiten `PolicyApplied` y `BucketsUpdated`.
+6. Buckets se actualizan con la policy fallback y su suma coincide con el neto depositado (monto - fee).
