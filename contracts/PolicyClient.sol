@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {Ownable} from "./vendor/openzeppelin/access/Ownable.sol";
 import {ITeleporterMessenger} from "./interfaces/ITeleporterMessenger.sol";
+import {MessageFormatV1} from "./libraries/MessageFormatV1.sol";
 
-contract PolicyClient {
+contract PolicyClient is Ownable {
     uint16 public constant BPS_DENOMINATOR = 10_000;
 
     error ZeroAddress();
@@ -13,12 +15,16 @@ contract PolicyClient {
     error InvalidPolicySum(uint256 sumBps);
     error PolicyAlreadyStored(uint256 epoch);
     error NoFallbackPolicy();
+    error RequestTargetNotSet();
 
     address public immutable teleporterMessenger;
-    uint256 public immutable sourceChainId;
-    address public immutable sourcePolicySender;
+
+    uint256 public requestTargetChainId;
+    address public requestTargetSender;
 
     uint256 public lastKnownEpoch;
+
+    mapping(uint256 => mapping(address => bool)) public allowedPolicySources;
 
     mapping(uint256 => bool) public hasPolicyForEpoch;
     mapping(uint256 => uint256[]) private _policyValidatorIdsByEpoch;
@@ -30,7 +36,8 @@ contract PolicyClient {
     event PolicyRequested(
         uint256 indexed epoch,
         address indexed requester,
-        bytes32 indexed messageId
+        address indexed vaultAddress,
+        bytes32 messageId
     );
 
     event PolicyReceived(
@@ -45,31 +52,72 @@ contract PolicyClient {
         address indexed caller
     );
 
-    constructor(
-        address teleporterMessenger_,
-        uint256 sourceChainId_,
-        address sourcePolicySender_
-    ) {
-        if (teleporterMessenger_ == address(0) || sourcePolicySender_ == address(0)) {
+    event PolicySourceSet(
+        uint256 indexed chainId,
+        address indexed sender,
+        bool allowed
+    );
+
+    event RequestTargetSet(uint256 indexed chainId, address indexed sender);
+
+    constructor(address teleporterMessenger_, address owner_) Ownable(owner_) {
+        if (teleporterMessenger_ == address(0) || owner_ == address(0)) {
             revert ZeroAddress();
         }
 
         teleporterMessenger = teleporterMessenger_;
-        sourceChainId = sourceChainId_;
-        sourcePolicySender = sourcePolicySender_;
     }
 
-    function requestPolicy(uint256 epoch) external returns (bytes32 messageId) {
-        // Request payload can be routed/decoded by the C-Chain responder.
-        bytes memory requestPayload = abi.encode(epoch);
+    function setAllowedPolicySource(
+        uint256 chainId,
+        address sender,
+        bool allowed
+    ) external onlyOwner {
+        if (sender == address(0)) {
+            revert ZeroAddress();
+        }
+
+        allowedPolicySources[chainId][sender] = allowed;
+        emit PolicySourceSet(chainId, sender, allowed);
+    }
+
+    function setRequestTarget(uint256 chainId, address sender) external onlyOwner {
+        if (sender == address(0)) {
+            revert ZeroAddress();
+        }
+
+        requestTargetChainId = chainId;
+        requestTargetSender = sender;
+        emit RequestTargetSet(chainId, sender);
+    }
+
+    function requestPolicy(uint256 epoch) external returns (bytes32) {
+        return requestPolicy(epoch, address(0));
+    }
+
+    function requestPolicy(
+        uint256 epoch,
+        address vaultAddress
+    ) public returns (bytes32 messageId) {
+        if (requestTargetSender == address(0)) {
+            revert RequestTargetNotSet();
+        }
+
+        bytes memory requestPayload = MessageFormatV1.encodeRequestPolicy(
+            MessageFormatV1.RequestPolicy({
+                epoch: epoch,
+                requester: msg.sender,
+                vaultAddress: vaultAddress
+            })
+        );
 
         messageId = ITeleporterMessenger(teleporterMessenger).sendCrossChainMessage(
-            sourceChainId,
-            sourcePolicySender,
+            requestTargetChainId,
+            requestTargetSender,
             requestPayload
         );
 
-        emit PolicyRequested(epoch, msg.sender, messageId);
+        emit PolicyRequested(epoch, msg.sender, vaultAddress, messageId);
     }
 
     function onTeleporterMessage(
@@ -79,24 +127,16 @@ contract PolicyClient {
     ) external {
         _checkMessenger();
 
-        (
-            uint256 epoch,
-            uint256[] memory validatorIds,
-            uint16[] memory weightBps
-        ) = abi.decode(payload, (uint256, uint256[], uint16[]));
+        if (!allowedPolicySources[originChainId][originSender]) {
+            revert InvalidPolicySource(originChainId, originSender);
+        }
 
-        _storePolicy(originChainId, originSender, epoch, validatorIds, weightBps);
-    }
+        MessageFormatV1.PolicyResponse memory response = MessageFormatV1
+            .decodePolicyResponse(payload);
 
-    function onPolicyResponse(
-        uint256 originChainId,
-        address originSender,
-        uint256 epoch,
-        uint256[] calldata validatorIds,
-        uint16[] calldata weightBps
-    ) external {
-        _checkMessenger();
-        _storePolicy(originChainId, originSender, epoch, validatorIds, weightBps);
+        _storePolicy(response.epoch, response.validatorIds, response.weightsBps);
+
+        emit PolicyReceived(response.epoch, originChainId, originSender);
     }
 
     function getPolicy(
@@ -147,16 +187,10 @@ contract PolicyClient {
     }
 
     function _storePolicy(
-        uint256 originChainId,
-        address originSender,
         uint256 epoch,
         uint256[] memory validatorIds,
         uint16[] memory weightBps
     ) internal {
-        if (originChainId != sourceChainId || originSender != sourcePolicySender) {
-            revert InvalidPolicySource(originChainId, originSender);
-        }
-
         if (hasPolicyForEpoch[epoch]) {
             revert PolicyAlreadyStored(epoch);
         }
@@ -187,7 +221,5 @@ contract PolicyClient {
             _lastKnownValidatorIds.push(validatorIds[i]);
             _lastKnownWeightsBps.push(weightBps[i]);
         }
-
-        emit PolicyReceived(epoch, originChainId, originSender);
     }
 }

@@ -174,3 +174,23 @@ Eventos:
 Flujo esperado (DoD):
 1. Para un `epochToUse` sin policy local, se llama `requestPolicy(epochToUse)`.
 2. Mientras llega respuesta, `getPolicyOrFallback(epochToUse)` usa fallback (`lastKnownPolicy`) y emite `PolicyFallbackUsed`.
+
+### Message Format v1
+
+Payload ABI-encoded con discriminador `messageType`:
+
+- `RequestPolicy` (`messageType = 1`)
+  - `(uint8 messageType, uint256 epoch, address requester, address vaultAddress)`
+- `PolicyResponse` (`messageType = 2`)
+  - `(uint8 messageType, uint256 epoch, uint256[] validatorIds, uint16[] weightsBps)`
+
+Reglas de seguridad:
+- handlers solo aceptan llamadas del `teleporterMessenger` (`onlyTeleporterMessenger`).
+- ambos lados validan allowlist de `(sourceChainId, sourceSender)`.
+
+Configuracion de peers (setters):
+
+```bash
+npm run set:policy-server-peers
+npm run set:policy-client-peers
+```
