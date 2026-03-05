@@ -1,22 +1,25 @@
-import { ethers, network } from "hardhat";
-import fs from "fs";
-import path from "path";
+const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
 
-function getDeploymentsPath(): string {
+function getDeploymentsPath() {
   const custom = process.env.DEPLOYMENTS_FILE;
   return custom && custom.length > 0
     ? path.resolve(process.cwd(), custom)
     : path.resolve(process.cwd(), "deployments.json");
 }
 
-function requireAddress(value: string | undefined, field: string): string {
+function requireAddress(value, field) {
+  const { ethers } = hre;
   if (!value || !ethers.isAddress(value)) {
     throw new Error(`Invalid or missing address for ${field}`);
   }
   return value;
 }
 
-function readMpDaoAddress(filePath: string, currentNetwork: string): string {
+function readMpDaoAddress(filePath, currentNetwork) {
+  const { ethers } = hre;
+
   if (!fs.existsSync(filePath)) {
     throw new Error(`deployments file not found: ${filePath}`);
   }
@@ -34,6 +37,8 @@ function readMpDaoAddress(filePath: string, currentNetwork: string): string {
 }
 
 async function main() {
+  const { ethers, network } = hre;
+
   if (network.name !== "cchain_testnet") {
     throw new Error(
       `This script is intended for cchain_testnet. Current network: ${network.name}`
@@ -42,14 +47,8 @@ async function main() {
 
   const deploymentsPath = getDeploymentsPath();
 
-  const to1 = requireAddress(
-    process.env.MINT_ACCOUNT_1,
-    "MINT_ACCOUNT_1"
-  );
-  const to2 = requireAddress(
-    process.env.MINT_ACCOUNT_2,
-    "MINT_ACCOUNT_2"
-  );
+  const to1 = requireAddress(process.env.MINT_ACCOUNT_1, "MINT_ACCOUNT_1");
+  const to2 = requireAddress(process.env.MINT_ACCOUNT_2, "MINT_ACCOUNT_2");
 
   // Amounts are provided as whole-token strings (e.g. "1000"), converted to 6-decimal units.
   const amount1 = ethers.parseUnits(process.env.MINT_AMOUNT_1 || "1000", 6);

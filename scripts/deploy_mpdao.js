@@ -1,20 +1,15 @@
-import { ethers, network } from "hardhat";
-import fs from "fs";
-import path from "path";
+const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
 
-type DeploymentsFile = {
-  updatedAt: string;
-  networks: Record<string, any>;
-};
-
-function getDeploymentsPath(): string {
+function getDeploymentsPath() {
   const custom = process.env.DEPLOYMENTS_FILE;
   return custom && custom.length > 0
     ? path.resolve(process.cwd(), custom)
     : path.resolve(process.cwd(), "deployments.json");
 }
 
-function readDeployments(filePath: string): DeploymentsFile {
+function readDeployments(filePath) {
   if (!fs.existsSync(filePath)) {
     return { updatedAt: new Date().toISOString(), networks: {} };
   }
@@ -24,6 +19,8 @@ function readDeployments(filePath: string): DeploymentsFile {
 }
 
 async function main() {
+  const { ethers, network } = hre;
+
   if (network.name !== "cchain_testnet") {
     throw new Error(
       `This script is intended for cchain_testnet. Current network: ${network.name}`

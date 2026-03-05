@@ -79,3 +79,22 @@ Requiere en `.env`:
 - `MINT_ACCOUNT_1`
 - `MINT_ACCOUNT_2`
 - opcional `MINT_AMOUNT_1` y `MINT_AMOUNT_2` (default `1000`).
+
+## Issue 3 - Voting Power en C-Chain (Proxy)
+
+Deploy de `VotingPowerV1` usando patrón proxy:
+
+```bash
+npm run deploy:voting-power
+```
+
+Stake/lock para obtener VP:
+
+```bash
+npm run stake:vp
+```
+
+Requiere en `.env`:
+- `STAKE_AMOUNT` (tokens enteros, default `1000`)
+- `STAKE_LOCK_DAYS` (entre `30` y `300`, default `30`)
+- opcional `USER_B_ADDRESS` (si falta, se usa una address aleatoria para validar VP=0)
