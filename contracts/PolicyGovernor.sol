@@ -106,7 +106,26 @@ contract PolicyGovernor {
     }
 
     function getCurrentEpoch() public view returns (uint256) {
-        return ((block.timestamp - START_TIMESTAMP) / EPOCH_SECONDS) + 1;
+        return currentEpoch(block.timestamp);
+    }
+
+    function currentEpoch(uint256 timestamp) public view returns (uint256) {
+        if (timestamp < START_TIMESTAMP) {
+            return 0;
+        }
+        return ((timestamp - START_TIMESTAMP) / EPOCH_SECONDS) + 1;
+    }
+
+    function getApplicableEpoch() external view returns (uint256) {
+        return applicableEpoch(block.timestamp);
+    }
+
+    function applicableEpoch(uint256 timestamp) public view returns (uint256) {
+        uint256 epoch = currentEpoch(timestamp);
+        if (epoch == 0) {
+            return 0;
+        }
+        return epoch - 1;
     }
 
     function getLatestFinalizedEpoch() external view returns (uint256) {

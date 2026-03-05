@@ -98,3 +98,30 @@ Requiere en `.env`:
 - `STAKE_AMOUNT` (tokens enteros, default `1000`)
 - `STAKE_LOCK_DAYS` (entre `30` y `300`, default `30`)
 - opcional `USER_B_ADDRESS` (si falta, se usa una address aleatoria para validar VP=0)
+
+## Issue 5 - Policy Timing (epoch-1 rule)
+
+Regla de timing anti-manipulacion:
+
+- `currentEpoch` se calcula igual en C-Chain y BEAM con:
+  - `currentEpoch = floor((timestamp - START_TIMESTAMP) / EPOCH_SECONDS) + 1`
+- Para aplicar policy en BEAM:
+  - `epochToUse = currentEpoch - 1`
+
+En `PolicyGovernor`:
+- `currentEpoch(timestamp)` devuelve epoch para un timestamp dado.
+- `applicableEpoch(timestamp)` devuelve `currentEpoch(timestamp) - 1`.
+- `getApplicableEpoch()` aplica esa regla usando `block.timestamp`.
+
+Ejemplos (si `EPOCH_SECONDS = 60`):
+
+- `t = START + 0s` -> `currentEpoch = 1`, `epochToUse = 0`
+- `t = START + 59s` -> `currentEpoch = 1`, `epochToUse = 0`
+- `t = START + 60s` -> `currentEpoch = 2`, `epochToUse = 1`
+- `t = START + 120s` -> `currentEpoch = 3`, `epochToUse = 2`
+
+Script de verificacion:
+
+```bash
+npm run verify:policy-timing
+```

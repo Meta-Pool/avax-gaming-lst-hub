@@ -15,6 +15,7 @@
     "mint:mpdao": "hardhat run scripts/mint_mpdao.js --network cchain_testnet",
     "deploy:voting-power": "hardhat run scripts/deploy_voting_power.js --network cchain_testnet",
     "stake:vp": "hardhat run scripts/stake_for_vp.js --network cchain_testnet",
+    "verify:policy-timing": "hardhat run scripts/verify_policy_timing.js --network hardhat",
     "deploy:all": "hardhat run scripts/deploy-all.js",
     "send:ping": "hardhat run scripts/send-ping.js",
     "send:triangle": "hardhat run scripts/send-triangle.js",
