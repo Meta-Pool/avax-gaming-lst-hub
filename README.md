@@ -1,340 +1,193 @@
-# Hardhat Multi-network Skeleton (Issue 1)
+# Cross-Chain Governance on Avalanche
 
-Setup base para trabajar con 3 redes:
-- `cchain_testnet`
-- `dfk_testnet`
-- `beam_testnet`
+A decentralized governance system demonstrating cross-subnet coordination using Avalanche's Interchain Messaging (ICM/Teleporter).
 
-## Setup
+**Governance happens on C-Chain. Execution happens on BEAM.** Policy decisions made by DAO token holders on C-Chain control how assets are managed on the BEAM subnet.
 
-1. Node.js 18+.
-2. Instala dependencias:
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[PROOF_OF_WORK.md](PROOF_OF_WORK.md)** | Complete system overview with deployed contracts and verification commands |
+| **[HOW_TO_RUN_THE_DEMO.md](HOW_TO_RUN_THE_DEMO.md)** | Step-by-step deployment and demo execution guide |
+| **[VERIFICATION_GUIDE.md](VERIFICATION_GUIDE.md)** | Contract verification instructions for block explorers |
+| **[SWITCH_TO_MOCK_CLIENT.md](SWITCH_TO_MOCK_CLIENT.md)** | Guide for switching between mock and real cross-chain policy clients |
+
+---
+
+## 🏗️ Architecture
+
+### C-Chain (Governance Layer)
+- **mpDAO Token** — ERC20 governance token with capped supply and burn mechanism
+- **VotingPower** — Stake/lock mpDAO to gain voting power (time-weighted)
+- **PolicyGovernor** — Epoch-based voting with quorum requirements
+- **PolicyServer** — Cross-chain message handler for policy distribution
+
+### BEAM Subnet (Execution Layer)
+- **StBEAMVault** — ERC-4626 compliant liquid staking vault
+- **MockPolicyClient** — Policy consumer (demo mode, no Teleporter dependency)
+- **WBEAM** — Wrapped BEAM token
+
+### Flow
+1. Users vote on validator delegation weights using mpDAO voting power
+2. PolicyGovernor finalizes policy each epoch (7 days)
+3. BEAM vault reads policy and distributes deposits across validator buckets
+4. Bucket accounting simulates how funds would be delegated to validators
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- Funded wallet on Avalanche Fuji Testnet (C-Chain and BEAM)
+
+### Installation
 
 ```bash
 npm install
+npx hardhat compile
 ```
 
-3. Crea `.env` desde `.env.example`:
+### Configuration
+
+Copy `.env.example` to `.env` and configure:
 
 ```bash
 cp .env.example .env
 ```
 
-Variables requeridas:
-- `RPC_CCHAIN_TESTNET`
-- `RPC_DFK_TESTNET`
-- `RPC_BEAM_TESTNET`
-- `PRIVATE_KEY`
-- `TELEPORTER_MESSENGER_CCHAIN`
-- `TELEPORTER_MESSENGER_DFK`
-- `TELEPORTER_MESSENGER_BEAM`
-
-## Issue 12 - Observabilidad + demo de 3 minutos
-
-### Arquitectura
-
-- C-Chain:
-  - `MpDaoToken` (gobernanza)
-  - `VotingPowerV1` (VP por lock/stake)
-  - `PolicyGovernor` (epochs + quorum + policy final)
-  - `PolicyServer` (handler request/response)
-- BEAM:
-  - `PolicyClient` (request + storage + fallback)
-  - `StBEAMVault` (ERC4626 + fee + buckets)
-- Backbone:
-  - Teleporter/AWM (mensaje `RequestPolicy` y `PolicyResponse`)
-
-### Variables de entorno para demo/read-state
-
-Mínimas para correr en testnet:
-- `RPC_CCHAIN_TESTNET`
-- `RPC_BEAM_TESTNET`
-- `PRIVATE_KEY`
-
-Para lectura explícita por script:
-- `POLICY_GOVERNOR_ADDRESS` (C-Chain)
-- `STBEAM_VAULT_ADDRESS` (BEAM)
-- `POLICY_CLIENT_ADDRESS` (BEAM, opcional)
-- `READ_POLICY_EPOCH` (opcional, si no se define usa `latestFinalizedEpoch`)
-
-### Comandos de demo
-
-Demo happy-path (usa C-Chain + BEAM testnet):
-
+**Required variables:**
 ```bash
-npm run demo:happy-path
+PRIVATE_KEY=0x...
+RPC_CCHAIN_TESTNET=https://api.avax-test.network/ext/bc/C/rpc
+RPC_BEAM_TESTNET=https://build.onbeam.com/rpc/testnet
+SNOWTRACE_API_KEY=your_api_key  # Optional but recommended
 ```
 
-Lectura de estado C-Chain policy:
+### Verify Network Connectivity
 
 ```bash
-npm run read:cchain-policy -- --policyGovernor 0x...
+npm run smoke:cchain
+npm run smoke:beam
 ```
 
-Lectura de estado BEAM vault + buckets:
+---
+
+## 📋 Key Commands
+
+### Deployment (see [HOW_TO_RUN_THE_DEMO.md](HOW_TO_RUN_THE_DEMO.md))
 
 ```bash
-npm run read:beam-vault -- --vault 0x... --policyClient 0x...
+# C-Chain deployments
+npm run deploy:mpdao
+npm run deploy:voting-power
+npm run deploy:policy-governor
+
+# BEAM deployments
+npm run deploy:beam-vault
 ```
 
-Si `POLICY_GOVERNOR_ADDRESS` / `STBEAM_VAULT_ADDRESS` están en `.env` (o en `deployments.json` con estructura compatible), los flags son opcionales.
+### Inspection
 
-### Qué mirar (eventos y outputs)
+```bash
+# Read C-Chain governance state
+npm run read:cchain-policy
 
-- En demo:
-  - `SUCCESS`
-  - `epoch usado`
-  - `policy final`
-  - `buckets resultantes`
-- En transacciones:
-  - `EpochFinalized` (C-Chain)
-  - `PolicyRequested`, `PolicyReceived`, `PolicyFallbackUsed` (BEAM client)
-  - `PolicyApplied`, `BucketsUpdated`, `FeeCharged` (BEAM vault)
-- En scripts de lectura:
-  - `applicableEpoch (epoch-1)`
-  - `latestFinalizedEpoch` / `epochRead`
-  - suma de policy en BPS (`policySumBps = 10000`)
-  - `bucketsSum` y distribución por `validatorId`
+# Read BEAM vault and buckets
+npm run read:beam-vault
 
-### Criterios de éxito
+# Check balances
+CHECK_ADDRESS=0x... npm run check_mpdao_balance.js --network cchain_testnet
+CHECK_ADDRESS=0x... npm run check_beam_balances.js --network beam_testnet
+```
 
-- `PolicyGovernor` tiene al menos un epoch finalizado con policy válida (10000 bps).
-- `StBEAMVault` aplica policy activa y actualiza buckets tras `deposit`.
-- Si falta policy de `epochToUse`, se usa fallback (`PolicyFallbackUsed`) sin revertir depósito.
-- Outputs de lectura muestran coherencia entre epoch aplicable, policy usada y buckets.
+### Contract Verification
 
-### Demo checklist (5 pasos)
+```bash
+# Verify all C-Chain contracts
+npm run verify:cchain
 
-1. Configurar `.env` (RPCs + `PRIVATE_KEY` + direcciones objetivo).
-2. Ejecutar `npm run demo:happy-path`.
-3. Confirmar `SUCCESS` + `epoch usado` + `policy final` + `buckets resultantes`.
-4. Ejecutar `npm run read:cchain-policy -- --policyGovernor 0x...`.
-5. Ejecutar `npm run read:beam-vault -- --vault 0x... --policyClient 0x...`.
+# Verify specific contract only (saves API calls)
+VERIFY_ONLY=policyGovernor npm run verify:cchain
+```
 
-## Comandos
+### Policy Client Management
 
-Compilar:
+```bash
+# Switch vault to use MockPolicyClient (demo mode)
+npm run vault:use-mock
+
+# Switch to real PolicyClient (requires Teleporter)
+npm run vault:use-real
+```
+
+---
+
+## 🎯 Deployed Contracts
+
+### C-Chain (Fuji Testnet)
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| mpDAO Token | `0x31e0752Deb99f1fCE9701Dc5611A1652189dEdC3` | [View](https://testnet.snowtrace.io/address/0x31e0752Deb99f1fCE9701Dc5611A1652189dEdC3) |
+| VotingPower | `0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583` | [View](https://testnet.snowtrace.io/address/0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583) |
+| PolicyGovernor | `0x19Af9A1F3f276e4F4A708Aca04E5B2Ea1520D08E` | [View](https://testnet.snowtrace.io/address/0x19Af9A1F3f276e4F4A708Aca04E5B2Ea1520D08E) |
+| PolicyServer | `0x4A8C4229642215aB4F035Bc4A732cB918E74B283` | [View](https://testnet.snowtrace.io/address/0x4A8C4229642215aB4F035Bc4A732cB918E74B283) |
+
+### BEAM Testnet
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| WBEAM | `0x244AfCd5a0bc8A4400c6702C6a2A7717945c5e70` | [View](https://subnets-test.avax.network/beam/address/0x244AfCd5a0bc8A4400c6702C6a2A7717945c5e70) |
+| StBEAMVault | `0x16A289aF7727Bfc3A2c4bda7993568D8A3148c48` | [View](https://subnets-test.avax.network/beam/address/0x16A289aF7727Bfc3A2c4bda7993568D8A3148c48) |
+| MockPolicyClient | `0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583` | [View](https://subnets-test.avax.network/beam/address/0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583) |
+
+---
+
+## 🔑 Key Features
+
+- ✅ **ERC-20 Governance Token** with capped supply and burn mechanism
+- ✅ **Time-Weighted Voting** — Lock tokens longer for more voting power
+- ✅ **Epoch-Based Governance** — 7-day voting periods with quorum requirements
+- ✅ **ERC-4626 Vault** — Standard compliant liquid staking on BEAM
+- ✅ **Policy-Driven Distribution** — Governance decisions control asset allocation
+- ✅ **Anti-Manipulation Safeguards** — Epoch timing rules prevent last-minute manipulation
+- ✅ **Upgradeable Architecture** — ERC-1967 proxy pattern for future enhancements
+
+---
+
+## 🛠️ Development
+
+### Compile Contracts
 
 ```bash
 npx hardhat compile
 ```
 
-Smoke test C-Chain testnet:
+### Run Tests
 
 ```bash
-npx hardhat run scripts/smoke.js --network cchain_testnet
+npx hardhat test
 ```
 
-Smoke test DFK testnet:
+### Clean Build Artifacts
 
 ```bash
-npx hardhat run scripts/smoke.js --network dfk_testnet
+npm run clean
 ```
 
-Smoke test BEAM testnet:
+---
 
-```bash
-npx hardhat run scripts/smoke.js --network beam_testnet
-```
+## 📄 License
 
-## Issue 2 - mpDAO Mock en C-Chain
+MIT
 
-Deploy en C-Chain testnet y persistencia en `deployments.json`:
+---
 
-```bash
-npm run deploy:mpdao
-```
+## 🤝 Contributing
 
-Configurable por `.env`:
-
-```bash
-MPDAO_NAME, MPDAO_SYMBOL, MPDAO_INITIAL_SUPPLY
-```
-
-Mint a 2 cuentas:
-
-```bash
-npm run mint:mpdao
-```
-
-Requiere en `.env`:
-- `MINT_ACCOUNT_1`
-- `MINT_ACCOUNT_2`
-- opcional `MINT_AMOUNT_1` y `MINT_AMOUNT_2` (default `1000`).
-
-## Issue 3 - Voting Power en C-Chain (Proxy)
-
-Deploy de `VotingPowerV1` usando patrón proxy:
-
-```bash
-npm run deploy:voting-power
-```
-
-Stake/lock para obtener VP:
-
-```bash
-npm run stake:vp
-```
-
-Requiere en `.env`:
-- `STAKE_AMOUNT` (tokens enteros, default `1000`)
-- `STAKE_LOCK_DAYS` (entre `30` y `300`, default `30`)
-- opcional `USER_B_ADDRESS` (si falta, se usa una address aleatoria para validar VP=0)
-
-## Issue 5 - Policy Timing (epoch-1 rule)
-
-Regla de timing anti-manipulacion:
-
-- `currentEpoch` se calcula igual en C-Chain y BEAM con:
-  - `currentEpoch = floor((timestamp - START_TIMESTAMP) / EPOCH_SECONDS) + 1`
-- Para aplicar policy en BEAM:
-  - `epochToUse = currentEpoch - 1`
-
-En `PolicyGovernor`:
-- `currentEpoch(timestamp)` devuelve epoch para un timestamp dado.
-- `applicableEpoch(timestamp)` devuelve `currentEpoch(timestamp) - 1`.
-- `getApplicableEpoch()` aplica esa regla usando `block.timestamp`.
-
-Ejemplos (si `EPOCH_SECONDS = 60`):
-
-- `t = START + 0s` -> `currentEpoch = 1`, `epochToUse = 0`
-- `t = START + 59s` -> `currentEpoch = 1`, `epochToUse = 0`
-- `t = START + 60s` -> `currentEpoch = 2`, `epochToUse = 1`
-- `t = START + 120s` -> `currentEpoch = 3`, `epochToUse = 2`
-
-Script de verificacion:
-
-```bash
-npm run verify:policy-timing
-```
-
-## Issue 6 - BEAM Vault ERC4626 stBEAM + deposit fee
-
-Contratos:
-- `StBEAMVault` (ERC4626) para mintear `stBEAM`.
-- `BeamAssetMock` (si no se provee asset externo).
-
-Modelo de fee:
-- `DEPOSIT_FEE_BPS` se cobra **sobre el monto depositado**.
-- No es un cargo adicional.
-- El fee acumulado queda en `feeAccumulator`.
-
-Deploy en BEAM testnet:
-
-```bash
-npm run deploy:beam-vault
-```
-
-Smoke de vault (deposit + withdraw + fee):
-
-```bash
-npm run smoke:beam-vault
-```
-
-Eventos:
-- `Deposit` (ERC4626 estándar)
-- `Withdraw` (ERC4626 estándar)
-- `FeeCharged` (custom)
-
-## Issue 7 - BEAM PolicyClient (request/response + fallback)
-
-`PolicyClient` en BEAM:
-- `requestPolicy(epoch)` envia solicitud a C-Chain.
-- `onPolicyResponse(...)` / `onTeleporterMessage(...)` reciben y guardan policy.
-- Storage:
-  - `lastKnownEpoch`
-  - `lastKnownPolicy` (validator IDs + weights BPS)
-- `getPolicyOrFallback(epoch)`:
-  - si existe policy para `epoch`, la devuelve.
-  - si no existe, devuelve `lastKnownPolicy` y emite `PolicyFallbackUsed`.
-
-Eventos:
-- `PolicyRequested`
-- `PolicyReceived`
-- `PolicyFallbackUsed`
-
-Flujo esperado (DoD):
-1. Para un `epochToUse` sin policy local, se llama `requestPolicy(epochToUse)`.
-2. Mientras llega respuesta, `getPolicyOrFallback(epochToUse)` usa fallback (`lastKnownPolicy`) y emite `PolicyFallbackUsed`.
-
-### Message Format v1
-
-Payload ABI-encoded con discriminador `messageType`:
-
-- `RequestPolicy` (`messageType = 1`)
-  - `(uint8 messageType, uint256 epoch, address requester, address vaultAddress)`
-- `PolicyResponse` (`messageType = 2`)
-  - `(uint8 messageType, uint256 epoch, uint256[] validatorIds, uint16[] weightsBps)`
-
-Reglas de seguridad:
-- handlers solo aceptan llamadas del `teleporterMessenger` (`onlyTeleporterMessenger`).
-- ambos lados validan allowlist de `(sourceChainId, sourceSender)`.
-
-Configuracion de peers (setters):
-
-```bash
-npm run set:policy-server-peers
-npm run set:policy-client-peers
-```
-
-## Issue 9 - BEAM simulated execution (buckets)
-
-`StBEAMVault` ahora aplica policy y simula ejecucion por buckets internos:
-- Para cada deposito neto (despues de fee), distribuye por `validatorId` segun `weightsBps`.
-- Contabilidad:
-  - `bucket[validatorId] += amountPart`
-- Eventos:
-  - `PolicyApplied(epoch, weights[])`
-  - `BucketsUpdated(epoch, amounts[])`
-
-Regla aplicada:
-- El vault usa `epochToUse = currentEpoch - 1`.
-- Obtiene policy via `PolicyClient.getPolicyOrFallback(epochToUse)`.
-- Si no hay policy para `epochToUse`, usa fallback (si existe `lastKnownPolicy`).
-
-Lectura de estado:
-- `getBuckets()` devuelve `(validatorIds[], amounts[])`.
-
-DoD esperado:
-- Tras `deposit()`, los buckets cambian y la suma de incrementos coincide con el neto depositado (monto - fee).
-
-## Issue 10 - Demo happy path E2E
-
-Script unico:
-
-```bash
-npm run demo:happy-path
-```
-
-Flujo del demo:
-1. C-Chain: deploy `mpDAO`, `VotingPower` (proxy), `PolicyGovernor`, `PolicyServer`.
-2. C-Chain: mintea mpDAO al usuario.
-3. C-Chain: stake/lock para obtener VP.
-4. C-Chain: vota policy A/B/C/D y finaliza epoch.
-5. BEAM: deploy `PolicyClient`, `stBEAMVault`, mock asset.
-6. BEAM: hace `requestPolicy(epochToUse)`.
-7. Relay simulado request/response con `MockTeleporterMessenger`.
-8. BEAM: deposita en vault.
-9. BEAM: verifica `PolicyApplied` y `BucketsUpdated`.
-
-Salida esperada:
-- `epoch usado`
-- `policy final`
-- `buckets resultantes`
-- `SUCCESS`
-
-## Issue 11 - Demo fallback path
-
-Script unico (sin depender de RPC externas, usa `hardhat`):
-
-```bash
-npm run demo:fallback
-```
-
-Que demuestra:
-1. Existe una `lastKnownPolicy` (epoch conocido).
-2. Se solicita policy para un epoch nuevo y no llega respuesta.
-3. `deposit()` no revierte.
-4. Se emite `PolicyFallbackUsed`.
-5. Se emiten `PolicyApplied` y `BucketsUpdated`.
-6. Buckets se actualizan con la policy fallback y su suma coincide con el neto depositado (monto - fee).
+This is a hackathon proof-of-concept. For production use, additional security audits and testing are required.
