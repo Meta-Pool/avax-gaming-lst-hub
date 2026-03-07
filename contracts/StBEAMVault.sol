@@ -19,6 +19,11 @@ interface IPolicyClientReader {
         );
 }
 
+interface IWBEAM {
+    function deposit() external payable;
+    function withdraw(uint256 amount) external;
+}
+
 contract StBEAMVault is ERC4626, Ownable {
     using SafeERC20 for IERC20;
 
@@ -187,6 +192,40 @@ contract StBEAMVault is ERC4626, Ownable {
         _applyAndDistribute(netAssets);
 
         emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
+    /// @notice Deposit native BEAM tokens, which will be wrapped to WBEAM and deposited into the vault
+    /// @param receiver The address that will receive the stBEAM shares
+    /// @return shares The amount of stBEAM shares minted to the receiver
+    function depositBEAM(address receiver) external payable returns (uint256 shares) {
+        if (msg.value == 0) {
+            revert InvalidAmount();
+        }
+
+        // Wrap native BEAM to WBEAM
+        IWBEAM wbeam = IWBEAM(asset());
+        wbeam.deposit{value: msg.value}();
+
+        // Calculate fee and shares (same logic as regular deposit)
+        uint256 fee = _depositFee(msg.value);
+        uint256 netAssets = msg.value - fee;
+
+        shares = _convertToShares(netAssets, false);
+        if (shares == 0) {
+            revert InvalidAmount();
+        }
+
+        // Mint shares to receiver
+        _mint(receiver, shares);
+
+        if (fee > 0) {
+            feeAccumulator += fee;
+            emit FeeCharged(msg.sender, receiver, msg.value, fee, feeAccumulator);
+        }
+
+        _applyAndDistribute(netAssets);
+
+        emit Deposit(msg.sender, receiver, msg.value, shares);
     }
 
     function mint(

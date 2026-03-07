@@ -252,7 +252,9 @@ contract PolicyGovernor {
 
         for (uint256 i = 0; i < validatorsLen; i += 1) {
             uint256 aggregate = _aggregatedWeightPowerByEpoch[epoch][i];
-            uint256 weight = (aggregate * BPS_DENOMINATOR) / participatedVp;
+            // FIX: Remove unnecessary BPS_DENOMINATOR multiplication that causes overflow
+            // aggregate already contains BPS values, so dividing by participatedVp gives weighted average BPS
+            uint256 weight = aggregate / participatedVp;
             weights[i] = uint16(weight);
             sum += weight;
 

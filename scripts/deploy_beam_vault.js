@@ -102,15 +102,115 @@ async function main() {
     throw new Error("No deployer account available. Check PRIVATE_KEY in .env");
   }
 
+  console.log("═".repeat(70));
+  console.log("🚀 BEAM VAULT DEPLOYMENT");
+  console.log("═".repeat(70));
+  console.log(`Network: ${network.name}`);
+  console.log(`Deployer: ${deployer.address}`);
+  
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log(`Balance: ${ethers.formatEther(balance)} BEAM`);
+  console.log("═".repeat(70));
+
   const depositFeeBps = Number(process.env.DEPOSIT_FEE_BPS || "100");
   if (!Number.isInteger(depositFeeBps) || depositFeeBps < 0 || depositFeeBps >= 10000) {
     throw new Error("DEPOSIT_FEE_BPS must be an integer in [0, 9999]");
   }
 
-  const assetInfo = await deployMockAssetIfNeeded(deployer);
-  const policyClientInfo = await deployMockPolicyClientIfNeeded();
+  const chainId = (await ethers.provider.getNetwork()).chainId;
+  const deploymentsPath = getDeploymentsPath();
+  const deployments = readDeployments(deploymentsPath);
+
+  if (!deployments.networks[network.name]) {
+    deployments.networks[network.name] = {};
+  }
+  deployments.networks[network.name].chainId = chainId.toString();
+
+  // Helper function to save deployments incrementally
+  function saveDeployments() {
+    deployments.updatedAt = new Date().toISOString();
+    fs.writeFileSync(deploymentsPath, `${JSON.stringify(deployments, null, 2)}\n`);
+  }
+
+  // Step 1: Deploy or get WBEAM asset
+  console.log("\n📦 Step 1/3: Deploy WBEAM Asset");
+  console.log("─".repeat(70));
+  
+  let assetInfo;
+  const existingAsset = deployments.networks[network.name].contracts?.beamAsset?.address;
+  if (existingAsset && ethers.isAddress(existingAsset)) {
+    console.log(`✅ Using existing WBEAM asset: ${existingAsset}`);
+    assetInfo = { address: existingAsset, deployed: false };
+  } else {
+    assetInfo = await deployMockAssetIfNeeded(deployer);
+    
+    // Save immediately after successful deployment
+    deployments.networks[network.name].contracts = {
+      ...(deployments.networks[network.name].contracts || {}),
+      beamAsset: {
+        address: assetInfo.address,
+        type: assetInfo.deployed ? "BeamAssetMock" : "external",
+        ...(assetInfo.name ? { name: assetInfo.name } : {}),
+        ...(assetInfo.symbol ? { symbol: assetInfo.symbol } : {}),
+      },
+    };
+    saveDeployments();
+    console.log(`✅ WBEAM asset deployed: ${assetInfo.address}`);
+    console.log(`📝 Saved to deployments.json`);
+  }
+
+  const balanceAfterAsset = await ethers.provider.getBalance(deployer.address);
+  console.log(`💰 Balance after asset: ${ethers.formatEther(balanceAfterAsset)} BEAM`);
+
+  // Step 2: Deploy or get PolicyClient
+  console.log("\n📦 Step 2/3: Deploy Policy Client");
+  console.log("─".repeat(70));
+  
+  let policyClientInfo;
+  const existingClient = deployments.networks[network.name].contracts?.policyClient?.address;
+  if (existingClient && ethers.isAddress(existingClient)) {
+    console.log(`✅ Using existing PolicyClient: ${existingClient}`);
+    policyClientInfo = { address: existingClient, deployed: false };
+  } else {
+    policyClientInfo = await deployMockPolicyClientIfNeeded();
+    
+    // Save immediately after successful deployment
+    deployments.networks[network.name].contracts = {
+      ...(deployments.networks[network.name].contracts || {}),
+      policyClient: {
+        address: policyClientInfo.address,
+        type: policyClientInfo.deployed ? "MockPolicyClient" : "external",
+      },
+    };
+    saveDeployments();
+    console.log(`✅ PolicyClient deployed: ${policyClientInfo.address}`);
+    console.log(`📝 Saved to deployments.json`);
+  }
+
+  const balanceAfterClient = await ethers.provider.getBalance(deployer.address);
+  console.log(`💰 Balance after client: ${ethers.formatEther(balanceAfterClient)} BEAM`);
+
+  // Step 3: Deploy Vault
+  console.log("\n📦 Step 3/3: Deploy stBEAM Vault");
+  console.log("─".repeat(70));
+  
+  const existingVault = 
+    deployments.networks[network.name].contracts?.stBeamVault?.address ||
+    deployments.networks[network.name].contracts?.stBEAMVault?.address;
+    
+  if (existingVault && ethers.isAddress(existingVault)) {
+    console.log(`✅ Vault already deployed: ${existingVault}`);
+    console.log(`⚠️  To redeploy, remove the vault entry from deployments.json`);
+    return;
+  }
+
   const policyEpochSeconds = Number(process.env.POLICY_EPOCH_SECONDS || "60");
   const policyStartTimestamp = BigInt(process.env.POLICY_START_TIMESTAMP || "0");
+
+  console.log(`Deploying vault with:`);
+  console.log(`  Asset: ${assetInfo.address}`);
+  console.log(`  PolicyClient: ${policyClientInfo.address}`);
+  console.log(`  DepositFee: ${depositFeeBps} BPS`);
 
   const vaultFactory = await ethers.getContractFactory("StBEAMVault");
   const vault = await vaultFactory.deploy(
@@ -124,23 +224,9 @@ async function main() {
   await vault.waitForDeployment();
   const vaultAddress = await vault.getAddress();
 
-  const chainId = (await ethers.provider.getNetwork()).chainId;
-  const deploymentsPath = getDeploymentsPath();
-  const deployments = readDeployments(deploymentsPath);
-
-  if (!deployments.networks[network.name]) {
-    deployments.networks[network.name] = {};
-  }
-
-  deployments.networks[network.name].chainId = chainId.toString();
+  // Save vault deployment
   deployments.networks[network.name].contracts = {
     ...(deployments.networks[network.name].contracts || {}),
-    beamAsset: {
-      address: assetInfo.address,
-      type: assetInfo.deployed ? "BeamAssetMock" : "external",
-      ...(assetInfo.name ? { name: assetInfo.name } : {}),
-      ...(assetInfo.symbol ? { symbol: assetInfo.symbol } : {}),
-    },
     stBeamVault: {
       address: vaultAddress,
       asset: assetInfo.address,
@@ -151,25 +237,33 @@ async function main() {
       feeMode: "on_deposited_amount",
       shareSymbol: "stBEAM",
     },
-    policyClient: {
-      address: policyClientInfo.address,
-      type: policyClientInfo.deployed ? "MockPolicyClient" : "external",
-    },
   };
-  deployments.updatedAt = new Date().toISOString();
+  saveDeployments();
+  console.log(`✅ stBEAMVault deployed: ${vaultAddress}`);
+  console.log(`📝 Saved to deployments.json`);
 
-  fs.writeFileSync(deploymentsPath, `${JSON.stringify(deployments, null, 2)}\n`);
+  const finalBalance = await ethers.provider.getBalance(deployer.address);
+  console.log(`💰 Final balance: ${ethers.formatEther(finalBalance)} BEAM`);
 
-  console.log(`beam asset: ${assetInfo.address} (${assetInfo.deployed ? "deployed" : "provided"})`);
-  console.log(
-    `policy client: ${policyClientInfo.address} (${policyClientInfo.deployed ? "deployed" : "provided"})`
-  );
-  console.log(`stBEAMVault deployed at: ${vaultAddress}`);
-  console.log(`deposit fee mode: on_deposited_amount (${depositFeeBps} bps)`);
-  console.log(`deployments saved to: ${deploymentsPath}`);
+  // Summary
+  console.log("\n" + "═".repeat(70));
+  console.log("✅ DEPLOYMENT COMPLETE");
+  console.log("═".repeat(70));
+  console.log(`WBEAM Asset: ${assetInfo.address}`);
+  console.log(`PolicyClient: ${policyClientInfo.address}`);
+  console.log(`stBEAMVault: ${vaultAddress}`);
+  console.log(`Deposit Fee: ${depositFeeBps} BPS (${depositFeeBps / 100}%)`);
+  console.log(`\n📝 All addresses saved to: ${deploymentsPath}`);
+  console.log(`💸 Total gas spent: ${ethers.formatEther(balance - finalBalance)} BEAM`);
+  console.log("═".repeat(70));
 }
 
 main().catch((error) => {
+  console.error("\n❌ DEPLOYMENT FAILED");
+  console.error("═".repeat(70));
   console.error(error.message || error);
+  console.error("\n💡 Note: Any successfully deployed contracts have been saved.");
+  console.error("   Re-run this script to continue from where it failed.");
+  console.error("═".repeat(70));
   process.exitCode = 1;
 });

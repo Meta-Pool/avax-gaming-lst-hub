@@ -27,7 +27,12 @@
     "deploy:all": "hardhat run scripts/deploy-all.js",
     "send:ping": "hardhat run scripts/send-ping.js",
     "send:triangle": "hardhat run scripts/send-triangle.js",
-    "read:state": "hardhat run scripts/read-state.js"
+    "read:state": "hardhat run scripts/read-state.js",
+    "verify:cchain": "hardhat run scripts/verify_contracts.js --network cchain_testnet",
+    "verify:beam": "hardhat run scripts/verify_contracts.js --network beam_testnet",
+    "vault:use-mock": "USE_MOCK_CLIENT=true hardhat run scripts/update_vault_policy_client.js --network beam_testnet",
+    "vault:use-real": "USE_MOCK_CLIENT=false hardhat run scripts/update_vault_policy_client.js --network beam_testnet",
+    "flatten:mock-client": "hardhat flatten contracts/mocks/MockPolicyClient.sol > MockPolicyClient_flat.sol && echo 'Flattened to MockPolicyClient_flat.sol'"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",

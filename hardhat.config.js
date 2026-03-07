@@ -82,4 +82,40 @@ module.exports = {
       accounts,
     },
   },
+  etherscan: {
+    apiKey: {
+      cchain_testnet: process.env.SNOWTRACE_API_KEY || "snowtrace", // Fuji testnet
+      beam_testnet: process.env.SNOWTRACE_API_KEY || "snowtrace", // Beam subnet
+      dfk_testnet: process.env.SNOWTRACE_API_KEY || "snowtrace", // DFK subnet
+    },
+    customChains: [
+      {
+        network: "cchain_testnet",
+        chainId: 43113,
+        urls: {
+          apiURL: "https://api-testnet.snowtrace.io/api",
+          browserURL: "https://testnet.snowtrace.io"
+        }
+      },
+      {
+        network: "beam_testnet",
+        chainId: 13337,
+        urls: {
+          apiURL: "https://subnets-test.avax.network/beam/block-explorer/api",
+          browserURL: "https://subnets-test.avax.network/beam"
+        }
+      },
+      {
+        network: "dfk_testnet",
+        chainId: 335,
+        urls: {
+          apiURL: "https://subnets-test.avax.network/defi-kingdoms/block-explorer/api",
+          browserURL: "https://subnets-test.avax.network/defi-kingdoms"
+        }
+      }
+    ]
+  },
+  sourcify: {
+    enabled: false
+  }
 };

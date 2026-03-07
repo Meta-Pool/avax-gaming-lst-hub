@@ -18,14 +18,19 @@ contract MockPolicyClient {
     uint16[] private _lastKnownWeightsBps;
 
     event PolicySet(uint256 indexed epoch);
-    event PolicyFallbackUsed(uint256 indexed requestedEpoch, uint256 indexed fallbackEpoch);
+    event PolicyFallbackUsed(
+        uint256 indexed requestedEpoch,
+        uint256 indexed fallbackEpoch
+    );
 
     function setPolicy(
         uint256 epoch,
         uint256[] calldata validatorIds,
         uint16[] calldata weightsBps
     ) external {
-        if (validatorIds.length == 0 || validatorIds.length != weightsBps.length) {
+        if (
+            validatorIds.length == 0 || validatorIds.length != weightsBps.length
+        ) {
             revert InvalidPolicyLength();
         }
 
@@ -57,6 +62,35 @@ contract MockPolicyClient {
         emit PolicySet(epoch);
     }
 
+    function getPolicy(
+        uint256 epoch
+    )
+        external
+        view
+        returns (uint256[] memory validatorIds, uint16[] memory weightBps)
+    {
+        if (!hasPolicyForEpoch[epoch]) {
+            return (new uint256[](0), new uint16[](0));
+        }
+
+        return (
+            _policyValidatorIdsByEpoch[epoch],
+            _policyWeightsByEpoch[epoch]
+        );
+    }
+
+    function getLastKnownPolicy()
+        external
+        view
+        returns (
+            uint256 epoch,
+            uint256[] memory validatorIds,
+            uint16[] memory weightBps
+        )
+    {
+        return (lastKnownEpoch, _lastKnownValidatorIds, _lastKnownWeightsBps);
+    }
+
     function getPolicyOrFallback(
         uint256 epoch
     )
@@ -69,7 +103,12 @@ contract MockPolicyClient {
         )
     {
         if (hasPolicyForEpoch[epoch]) {
-            return (epoch, _policyValidatorIdsByEpoch[epoch], _policyWeightsByEpoch[epoch], false);
+            return (
+                epoch,
+                _policyValidatorIdsByEpoch[epoch],
+                _policyWeightsByEpoch[epoch],
+                false
+            );
         }
 
         if (lastKnownEpoch == 0) {
@@ -77,6 +116,11 @@ contract MockPolicyClient {
         }
 
         emit PolicyFallbackUsed(epoch, lastKnownEpoch);
-        return (lastKnownEpoch, _lastKnownValidatorIds, _lastKnownWeightsBps, true);
+        return (
+            lastKnownEpoch,
+            _lastKnownValidatorIds,
+            _lastKnownWeightsBps,
+            true
+        );
     }
 }

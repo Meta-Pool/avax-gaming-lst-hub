@@ -1,0 +1,85 @@
+{
+  "updatedAt": "2026-03-07T00:57:33.292Z",
+  "networks": {
+    "cchain_testnet": {
+      "chainId": "43113",
+      "contracts": {
+        "mpdao": {
+          "address": "0x31e0752Deb99f1fCE9701Dc5611A1652189dEdC3",
+          "name": "Meta Pool DAO",
+          "symbol": "mpDAO",
+          "decimals": 6,
+          "owner": "0xe9C733bDe70B8512449eEC3323542b0F42A1a484"
+        },
+        "votingPower": {
+          "implementation": "0x16A289aF7727Bfc3A2c4bda7993568D8A3148c48",
+          "proxy": "0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583",
+          "mpdao": "0x31e0752Deb99f1fCE9701Dc5611A1652189dEdC3"
+        },
+        "policyGovernor": {
+          "address": "0x19Af9A1F3f276e4F4A708Aca04E5B2Ea1520D08E",
+          "votingPower": "0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583",
+          "epochSeconds": "604800",
+          "startTimestamp": "1772817308",
+          "quorumMode": "BPS",
+          "quorumValue": "5000",
+          "validatorIds": [
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        "policyServer": {
+          "address": "0x4A8C4229642215aB4F035Bc4A732cB918E74B283",
+          "type": "PolicyServer",
+          "policyGovernor": "0x19Af9A1F3f276e4F4A708Aca04E5B2Ea1520D08E",
+          "teleporterMessenger": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+          "owner": "0xe9C733bDe70B8512449eEC3323542b0F42A1a484"
+        }
+      }
+    },
+    "beam_testnet": {
+      "chainId": "13337",
+      "contracts": {
+        "beamAsset": {
+          "address": "0x244AfCd5a0bc8A4400c6702C6a2A7717945c5e70",
+          "type": "BeamAssetMock",
+          "name": "Wrapped BEAM Mock",
+          "symbol": "WBEAM"
+        },
+        "stBeamVault": {
+          "address": "0x16A289aF7727Bfc3A2c4bda7993568D8A3148c48",
+          "asset": "0x244AfCd5a0bc8A4400c6702C6a2A7717945c5e70",
+          "policyClient": "0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583",
+          "policyEpochSeconds": 60,
+          "policyStartTimestamp": "0",
+          "depositFeeBps": 100,
+          "feeMode": "on_deposited_amount",
+          "shareSymbol": "stBEAM"
+        },
+        "policyClient": {
+          "address": "0xFd7ad3deF7768f0b69F4d2cA0Cea094d715b0583",
+          "type": "MockPolicyClient"
+        },
+        "realPolicyClient": {
+          "address": "0x63b52c20bf7e41429399493fC247530594b100d8",
+          "type": "PolicyClient",
+          "teleporterMessenger": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+          "owner": "0xe9C733bDe70B8512449eEC3323542b0F42A1a484",
+          "requestTarget": {
+            "chainId": "43113",
+            "address": "0x4A8C4229642215aB4F035Bc4A732cB918E74B283"
+          },
+          "allowedSources": [
+            {
+              "chainId": "43113",
+              "address": "0x4A8C4229642215aB4F035Bc4A732cB918E74B283",
+              "allowed": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}
